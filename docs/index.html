@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>CPU Scheduling - Etkileşimli Rapor</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; margin:24px; line-height:1.4}
+    h1{margin:0 0 8px 0}
+    .muted{color:#555}
+    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin:16px 0}
+    select,button{padding:10px 12px; font-size:14px}
+    table{border-collapse:collapse; width:100%; max-width:1100px; margin-top:12px}
+    th,td{border:1px solid #ddd; padding:10px; text-align:right}
+    th:first-child,td:first-child{text-align:left}
+    th{background:#f5f5f5}
+    .card{border:1px solid #ddd; border-radius:12px; padding:14px; margin-top:14px; max-width:1100px}
+    pre{background:#0b1020; color:#e8e8e8; padding:12px; border-radius:12px; overflow:auto; max-height:420px}
+  </style>
+</head>
+<body>
+  <h1>CPU Scheduling Proje Raporu (Etkileşimli)</h1>
+  <div class="muted">Case seç → algoritma seç → metrikleri gör. “Gantt’ı Aç” ile txt içeriğini ekrana getir.</div>
+
+  <div class="row">
+    <label>Case:
+      <select id="caseSel">
+        <option value="case1">case1</option>
+        <option value="case2">case2</option>
+      </select>
+    </label>
+
+    <label>Algoritma:
+      <select id="algoSel">
+        <option value="FCFS">FCFS</option>
+        <option value="SJF">SJF</option>
+        <option value="SRTF">SRTF</option>
+        <option value="RR_q4">RR (q=4)</option>
+        <option value="PNP">PNP</option>
+        <option value="PPS">PPS</option>
+      </select>
+    </label>
+
+    <button id="ganttBtn">Gantt’ı Aç</button>
+  </div>
+
+  <div class="card">
+    <b>Seçilen Dosya</b>
+    <div id="filePath" class="muted" style="margin-top:6px"></div>
+
+    <table id="metricsTable"></table>
+  </div>
+
+  <div class="card">
+    <b>Gantt / Çıktı (txt içeriği)</b>
+    <div class="muted" style="margin:6px 0 10px 0">Butona basınca seçilen dosya okunur ve burada gösterilir.</div>
+    <pre id="ganttBox">Henüz açılmadı.</pre>
+  </div>
+
+<script>
+  const DATA = {
+    case1: {
+      FCFS:   {MaxW:1683, AvgW:813.495, MaxTA:1703, AvgTA:823.995, T50:9,  T100:13, T150:16, T200:19, CS:200, EFF:0.9994288978},
+      SJF:    {MaxW:1863, AvgW:537.425, MaxTA:1883, AvgTA:547.925, T50:11, T100:22, T150:32, T200:42, CS:200, EFF:0.9994288978},
+      SRTF:   {MaxW:1863, AvgW:537.005, MaxTA:1883, AvgTA:547.505, T50:11, T100:22, T150:32, T200:42, CS:213, EFF:0.9994227144},
+      RR_q4:  {MaxW:1863, AvgW:1091.7,  MaxTA:1883, AvgTA:1102.2,  T50:7,  T100:10, T150:12, T200:14, CS:600, EFF:0.9992386753},
+      PPS:    {MaxW:1923, AvgW:748.395, MaxTA:1943, AvgTA:758.895, T50:7,  T100:13, T150:20, T200:25, CS:214, EFF:0.9994222388},
+      PNP:    {MaxW:1689, AvgW:824.77,  MaxTA:1707, AvgTA:835.27,  T50:8,  T100:13, T150:16, T200:21, CS:200, EFF:0.9994288978},
+    },
+    case2: {
+      FCFS:   {MaxW:851, AvgW:418.0,  MaxTA:853, AvgTA:428.5,  T50:5,  T100:10, T150:14, T200:18, CS:99,  EFF:0.9999057231746722},
+      SJF:    {MaxW:926, AvgW:268.39, MaxTA:946, AvgTA:278.89, T50:10, T100:21, T150:30, T200:42, CS:99,  EFF:0.9999057231746722},
+      SRTF:   {MaxW:926, AvgW:267.86, MaxTA:946, AvgTA:278.36, T50:10, T100:21, T150:31, T200:42, CS:110, EFF:0.9998952490691453},
+      RR_q4:  {MaxW:926, AvgW:550.87, MaxTA:944, AvgTA:561.37, T50:3,  T100:8,  T150:10, T200:11, CS:299, EFF:0.9997153191614959},
+      PPS:    {MaxW:962, AvgW:366.33, MaxTA:981, AvgTA:376.83, T50:6,  T100:12, T150:18, T200:25, CS:110, EFF:0.9998952490691453},
+      PNP:    {MaxW:836, AvgW:409.63, MaxTA:854, AvgTA:420.13, T50:5,  T100:9,  T150:15, T200:19, CS:99,  EFF:0.9999057231746722},
+    }
+  };
+
+  function fileFor(caseName, algo){
+    return `outputs/${caseName}/${caseName}_${algo}.txt`;
+  }
+
+  function renderTable(caseName, algo){
+    const d = DATA[caseName][algo];
+    const tbl = document.getElementById("metricsTable");
+    tbl.innerHTML = `
+      <tr>
+        <th>Algoritma</th><th>MaxW</th><th>AvgW</th><th>MaxTA</th><th>AvgTA</th>
+        <th>T=50</th><th>T=100</th><th>T=150</th><th>T=200</th><th>CS</th><th>CPU_EFF</th>
+      </tr>
+      <tr>
+        <td style="text-align:left">${algo}</td>
+        <td>${d.MaxW}</td><td>${d.AvgW}</td><td>${d.MaxTA}</td><td>${d.AvgTA}</td>
+        <td>${d.T50}</td><td>${d.T100}</td><td>${d.T150}</td><td>${d.T200}</td>
+        <td>${d.CS}</td><td>${d.EFF}</td>
+      </tr>
+    `;
+  }
+
+  async function loadGantt(caseName, algo){
+    const path = fileFor(caseName, algo);
+    document.getElementById("filePath").textContent = path;
+
+    const box = document.getElementById("ganttBox");
+    box.textContent = "Yükleniyor...";
+
+    try{
+      const res = await fetch(path);
+      if(!res.ok) throw new Error("Dosya bulunamadı: " + path);
+      const txt = await res.text();
+      box.textContent = txt;
+    }catch(e){
+      box.textContent = "HATA: " + e.message + "\n\nÇözüm: docs/outputs klasöründe dosya isimleri doğru mu kontrol et.";
+    }
+  }
+
+  const caseSel = document.getElementById("caseSel");
+  const algoSel = document.getElementById("algoSel");
+  const ganttBtn = document.getElementById("ganttBtn");
+
+  function refresh(){
+    const c = caseSel.value;
+    const a = algoSel.value;
+    document.getElementById("filePath").textContent = fileFor(c, a);
+    renderTable(c, a);
+  }
+
+  caseSel.addEventListener("change", refresh);
+  algoSel.addEventListener("change", refresh);
+  ganttBtn.addEventListener("click", () => loadGantt(caseSel.value, algoSel.value));
+
+  refresh();
+</script>
+</body>
+</html>
